@@ -9,7 +9,7 @@ import {
   Activity,
   Zap,
 } from 'lucide-react';
-import { TOWER_CONFIGS } from '../config/gameConfig';
+import { MAP_CONFIG, TOWER_CONFIGS } from '../config/gameConfig';
 import { TargetStrategy, Tower } from '../types/game';
 
 interface TowerInspectorProps {
@@ -37,6 +37,12 @@ export const TowerInspector: React.FC<TowerInspectorProps> = ({
   const canAffordUpgrade = upgradeData ? currentGold >= upgradeData.cost : false;
   const sellValue = Math.floor(tower.totalCost * 0.7);
 
+  const currentDps = (tower.damage * tower.attackSpeed).toFixed(1);
+  const nextDps = upgradeData ? (upgradeData.damage * upgradeData.attackSpeed).toFixed(1) : null;
+
+  const currentRangeTiles = (tower.range / MAP_CONFIG.cellSize).toFixed(1);
+  const nextRangeTiles = upgradeData ? (upgradeData.range / MAP_CONFIG.cellSize).toFixed(1) : null;
+
   const strategies: { value: TargetStrategy; label: string }[] = [
     { value: 'first', label: 'Đi đầu tiên' },
     { value: 'last', label: 'Đi sau cùng' },
@@ -46,7 +52,7 @@ export const TowerInspector: React.FC<TowerInspectorProps> = ({
   ];
 
   return (
-    <div className="inspector-panel">
+    <div className="inspector-panel pop-in">
       {/* Panel Header */}
       <div className="inspector-header">
         <div className="inspector-title-group">
@@ -58,38 +64,38 @@ export const TowerInspector: React.FC<TowerInspectorProps> = ({
         </button>
       </div>
 
-      {/* Stats Summary */}
+      {/* Stats Summary with DPS */}
       <div className="inspector-stats-grid">
         <div className="inspector-stat">
           <div className="stat-icon-label">
-            <Zap size={14} className="stat-icon-dmg" />
-            <span>Sát thương</span>
+            <Zap size={13} className="stat-icon-dmg" />
+            <span>Hiệu năng DPS</span>
           </div>
-          <span className="stat-number">{tower.damage}</span>
+          <span className="stat-number dps-highlight">{currentDps}/s</span>
         </div>
 
         <div className="inspector-stat">
           <div className="stat-icon-label">
-            <Crosshair size={14} className="stat-icon-rng" />
+            <Crosshair size={13} className="stat-icon-rng" />
             <span>Tầm bắn</span>
           </div>
-          <span className="stat-number">{tower.range}px</span>
+          <span className="stat-number">{currentRangeTiles} ô <small>({tower.range}px)</small></span>
         </div>
 
         <div className="inspector-stat">
           <div className="stat-icon-label">
-            <Activity size={14} className="stat-icon-spd" />
-            <span>Tốc bắn</span>
+            <Activity size={13} className="stat-icon-spd" />
+            <span>Sát thương / Tốc</span>
           </div>
-          <span className="stat-number">{tower.attackSpeed}/s</span>
+          <span className="stat-number">{tower.damage} <small>({tower.attackSpeed}/s)</small></span>
         </div>
 
         <div className="inspector-stat">
           <div className="stat-icon-label">
-            <Shield size={14} className="stat-icon-kls" />
+            <Shield size={13} className="stat-icon-kls" />
             <span>Kẻ địch hạ</span>
           </div>
-          <span className="stat-number">{tower.kills}</span>
+          <span className="stat-number">{tower.kills} quái</span>
         </div>
       </div>
 
@@ -122,16 +128,16 @@ export const TowerInspector: React.FC<TowerInspectorProps> = ({
 
           <div className="upgrade-preview">
             <div className="preview-stat">
+              Hiệu năng DPS: <span className="old-val">{currentDps}/s</span> →{' '}
+              <span className="new-val">{nextDps}/s</span>
+            </div>
+            <div className="preview-stat">
               Sát thương: <span className="old-val">{tower.damage}</span> →{' '}
               <span className="new-val">{upgradeData.damage}</span>
             </div>
             <div className="preview-stat">
-              Tầm bắn: <span className="old-val">{tower.range}</span> →{' '}
-              <span className="new-val">{upgradeData.range}</span>
-            </div>
-            <div className="preview-stat">
-              Tốc bắn: <span className="old-val">{tower.attackSpeed}/s</span> →{' '}
-              <span className="new-val">{upgradeData.attackSpeed}/s</span>
+              Tầm bắn: <span className="old-val">{currentRangeTiles} ô</span> →{' '}
+              <span className="new-val">{nextRangeTiles} ô ({upgradeData.range}px)</span>
             </div>
           </div>
 
@@ -161,4 +167,3 @@ export const TowerInspector: React.FC<TowerInspectorProps> = ({
     </div>
   );
 };
-

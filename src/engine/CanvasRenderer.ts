@@ -1,4 +1,4 @@
-import { MAP_CONFIG, TOWER_CONFIGS } from '../config/gameConfig';
+import { MAP_CONFIG, TACTICAL_BUILD_NODES, TOWER_CONFIGS } from '../config/gameConfig';
 import { Enemy, Particle, Point, Projectile, Tower, TowerType } from '../types/game';
 import { angleBetween } from '../utils/math';
 
@@ -21,7 +21,8 @@ export class CanvasRenderer {
     projectiles: Projectile[],
     particles: Particle[],
     selectedTower: Tower | null,
-    hoverBuild: { type: TowerType; x: number; y: number; valid: boolean } | null
+    hoverBuild: { type: TowerType; x: number; y: number; valid: boolean } | null,
+    hoverPreviewRangeType: TowerType | null = null
   ) {
     const ctx = this.ctx;
     const w = MAP_CONFIG.width;
@@ -33,38 +34,48 @@ export class CanvasRenderer {
     // 1. Terrain & Map Background
     this.drawTerrain(w, h);
 
-    // 2. Pathway with borders and cobblestones
+    // 2. Tactical Build Pedestals (Bệ đá đặt tháp chiến thuật)
+    this.drawTacticalBuildNodes(towers, hoverBuild !== null || hoverPreviewRangeType !== null);
+
+    // 3. Pathway with borders and cobblestones
     this.drawPath(waypoints);
 
-    // 3. Portals / Spawn & Base Citadel
+    // 4. Portals / Spawn & Base Citadel
     this.drawPortals(waypoints);
 
-    // 4. Tower range indicator for selected tower
+    // 5. Tower range indicator for selected tower
     if (selectedTower) {
       this.drawTowerRange(selectedTower.x, selectedTower.y, selectedTower.range, '#38bdf8', true);
     }
 
-    // 5. Towers
+    // 6. Hover Preview Range (when hovering tower card in shop)
+    if (!hoverBuild && hoverPreviewRangeType && !selectedTower) {
+      const cfg = TOWER_CONFIGS[hoverPreviewRangeType];
+      // Draw preview range in center or strategic node
+      this.drawTowerRange(385, 320, cfg.baseRange, cfg.color, false, `Tầm: ${(cfg.baseRange / 50).toFixed(1)} ô`);
+    }
+
+    // 7. Towers
     for (const tower of towers) {
       this.drawTower(tower, selectedTower?.id === tower.id);
     }
 
-    // 6. Enemies
+    // 8. Enemies
     for (const enemy of enemies) {
       this.drawEnemy(enemy);
     }
 
-    // 7. Projectiles
+    // 9. Projectiles
     for (const proj of projectiles) {
       this.drawProjectile(proj);
     }
 
-    // 8. Particles (Explosions, Texts, Sparks)
+    // 10. Particles (Explosions, Texts, Sparks)
     for (const part of particles) {
       this.drawParticle(part);
     }
 
-    // 9. Hover Placement Ghost
+    // 11. Hover Placement Ghost
     if (hoverBuild) {
       this.drawHoverGhost(hoverBuild);
     }
@@ -75,9 +86,9 @@ export class CanvasRenderer {
 
     // Deep tactical grass gradient
     const bgGrad = ctx.createLinearGradient(0, 0, w, h);
-    bgGrad.addColorStop(0, '#14281d'); // Rich deep forest moss
-    bgGrad.addColorStop(0.5, '#0f2017');
-    bgGrad.addColorStop(1, '#0a1610');
+    bgGrad.addColorStop(0, '#112217'); // Rich deep forest moss
+    bgGrad.addColorStop(0.5, '#0c1a12');
+    bgGrad.addColorStop(1, '#08120c');
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, w, h);
 
@@ -96,55 +107,98 @@ export class CanvasRenderer {
       ctx.lineTo(w, y);
     }
     ctx.stroke();
-
-    // Decorative landscape elements: decorative rock clusters & runes
-    this.drawEnvironmentalProps();
   }
 
-  private drawEnvironmentalProps() {
+  /**
+   * Draws designated tactical stone platforms (Bệ đá đặt tháp)
+   * High contrast, rune circles, pulsing indicators when in build mode or early game.
+   */
+  private drawTacticalBuildNodes(towers: Tower[], isBuildMode: boolean) {
     const ctx = this.ctx;
-    // Ambient forest rocks with moss
-    const rocks = [
-      { x: 100, y: 70, r: 18 },
-      { x: 380, y: 90, r: 24 },
-      { x: 380, y: 320, r: 28 },
-      { x: 640, y: 330, r: 22 },
-      { x: 630, y: 90, r: 16 },
-      { x: 140, y: 550, r: 25 },
-      { x: 390, y: 560, r: 20 },
-      { x: 880, y: 280, r: 24 },
-    ];
 
-    for (const rock of rocks) {
+    for (const node of TACTICAL_BUILD_NODES) {
+      // Check if a tower is already occupying this node
+      const hasTower = towers.some((t) => {
+        const dx = t.x - node.x;
+        const dy = t.y - node.y;
+        return dx * dx + dy * dy < 22 * 22;
+      });
+
       ctx.save();
-      // Drop shadow
+
+      // Pedestal Ground Shadow
       ctx.beginPath();
-      ctx.ellipse(rock.x + 3, rock.y + 4, rock.r, rock.r * 0.7, 0, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+      ctx.ellipse(node.x + 2, node.y + 4, 25, 17, 0, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
       ctx.fill();
 
-      // Rock body
+      // Octagonal Carved Stone Base (high contrast slate)
       ctx.beginPath();
-      ctx.arc(rock.x, rock.y, rock.r, 0, Math.PI * 2);
-      const rGrad = ctx.createRadialGradient(
-        rock.x - rock.r * 0.3,
-        rock.y - rock.r * 0.3,
+      for (let i = 0; i < 8; i++) {
+        const angle = (Math.PI / 4) * i;
+        const px = node.x + Math.cos(angle) * 22;
+        const py = node.y + Math.sin(angle) * 17;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+
+      // Beveled stone gradient
+      const stoneGrad = ctx.createRadialGradient(
+        node.x - 4,
+        node.y - 4,
         2,
-        rock.x,
-        rock.y,
-        rock.r
+        node.x,
+        node.y,
+        22
       );
-      rGrad.addColorStop(0, '#57534e');
-      rGrad.addColorStop(0.7, '#292524');
-      rGrad.addColorStop(1, '#1c1917');
-      ctx.fillStyle = rGrad;
+      stoneGrad.addColorStop(0, hasTower ? '#334155' : '#475569');
+      stoneGrad.addColorStop(0.8, hasTower ? '#1e293b' : '#334155');
+      stoneGrad.addColorStop(1, hasTower ? '#0f172a' : '#1e293b');
+      ctx.fillStyle = stoneGrad;
       ctx.fill();
 
-      // Moss patch
+      // Stone border
+      ctx.strokeStyle = hasTower ? '#475569' : '#94a3b8';
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+
+      // Inner tactical runic circle
+      ctx.strokeStyle = hasTower
+        ? 'rgba(71, 85, 105, 0.4)'
+        : 'rgba(56, 189, 248, 0.4)';
+      ctx.lineWidth = 1.2;
       ctx.beginPath();
-      ctx.arc(rock.x - rock.r * 0.2, rock.y - rock.r * 0.2, rock.r * 0.5, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(34, 197, 94, 0.25)';
-      ctx.fill();
+      ctx.arc(node.x, node.y, 11, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // If unoccupied, show glowing visual invitation to place tower
+      if (!hasTower) {
+        const pulse = Math.sin(this.animTimer * 4) * 0.3 + 0.7;
+        const ringRadius = 24 + Math.sin(this.animTimer * 3) * 2;
+
+        if (isBuildMode || towers.length === 0) {
+          // Animated dashed beacon ring
+          ctx.strokeStyle = `rgba(56, 189, 248, ${pulse * 0.85})`;
+          ctx.lineWidth = 1.8;
+          ctx.setLineDash([4, 4]);
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, ringRadius, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+
+        // Center "+" tactical build icon
+        ctx.strokeStyle = `rgba(250, 204, 21, ${pulse * 0.95})`;
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.moveTo(node.x - 5, node.y);
+        ctx.lineTo(node.x + 5, node.y);
+        ctx.moveTo(node.x, node.y - 5);
+        ctx.lineTo(node.x, node.y + 5);
+        ctx.stroke();
+      }
+
       ctx.restore();
     }
   }
@@ -193,7 +247,7 @@ export class CanvasRenderer {
     const dashOffset = -this.animTimer * 28;
     ctx.setLineDash([4, 28]);
     ctx.lineDashOffset = dashOffset;
-    ctx.strokeStyle = 'rgba(250, 204, 21, 0.35)'; // Amber guide pips
+    ctx.strokeStyle = 'rgba(250, 204, 21, 0.4)'; // Amber guide pips
     ctx.lineWidth = 3;
     ctx.stroke();
 
@@ -272,7 +326,14 @@ export class CanvasRenderer {
     ctx.restore();
   }
 
-  public drawTowerRange(x: number, y: number, range: number, color: string, isSelected: boolean = false) {
+  public drawTowerRange(
+    x: number,
+    y: number,
+    range: number,
+    color: string,
+    isSelected: boolean = false,
+    label?: string
+  ) {
     const ctx = this.ctx;
     ctx.save();
 
@@ -294,6 +355,15 @@ export class CanvasRenderer {
     ctx.beginPath();
     ctx.arc(x, y, range, 0, Math.PI * 2);
     ctx.stroke();
+
+    // Display range label in tile units
+    const tiles = (range / MAP_CONFIG.cellSize).toFixed(1);
+    const rangeText = label || `Tầm bắn: ${tiles} ô (${range}px)`;
+    ctx.font = 'bold 12px "Plus Jakarta Sans", sans-serif';
+    ctx.fillStyle = '#000000';
+    ctx.fillText(rangeText, x - 50 + 1, y - range - 8 + 1);
+    ctx.fillStyle = '#e2e8f0';
+    ctx.fillText(rangeText, x - 50, y - range - 8);
 
     ctx.restore();
   }
@@ -361,15 +431,15 @@ export class CanvasRenderer {
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(rotation);
-    ctx.translate(-recoil, 0); // Apply recoil backwards
+    ctx.translate(-recoil, 0);
 
-    // Archer figure (hooded cloak)
+    // Archer figure
     ctx.fillStyle = level === 3 ? '#0284c7' : '#0369a1';
     ctx.beginPath();
     ctx.arc(0, 0, 7, 0, Math.PI * 2);
     ctx.fill();
 
-    // Bow (arc facing target)
+    // Bow
     ctx.strokeStyle = level === 3 ? '#38bdf8' : '#e2e8f0';
     ctx.lineWidth = 2.5;
     ctx.beginPath();
@@ -399,7 +469,7 @@ export class CanvasRenderer {
   private drawCannonTower(x: number, y: number, level: number, rotation: number, recoil: number) {
     const ctx = this.ctx;
 
-    // 1. Heavy iron hexagonal base
+    // Heavy iron hexagonal base
     ctx.fillStyle = level === 3 ? '#451a03' : level === 2 ? '#292524' : '#3f3f46';
     ctx.strokeStyle = level === 3 ? '#ea580c' : '#18181b';
     ctx.lineWidth = 2.5;
@@ -429,31 +499,26 @@ export class CanvasRenderer {
     ctx.translate(-recoil, 0);
 
     if (level === 1) {
-      // Single heavy iron barrel
       ctx.fillStyle = '#27272a';
       ctx.strokeStyle = '#09090b';
       ctx.lineWidth = 2;
       ctx.fillRect(0, -6, 22, 12);
       ctx.strokeRect(0, -6, 22, 12);
 
-      // Muzzle rim
       ctx.fillStyle = '#71717a';
       ctx.fillRect(19, -7, 4, 14);
     } else if (level === 2) {
-      // Double reinforced barrels
-      ctx.fillStyle = '#b45309'; // Bronze plating
+      ctx.fillStyle = '#b45309';
       ctx.fillRect(-2, -8, 24, 6);
       ctx.fillRect(-2, 2, 24, 6);
       ctx.fillStyle = '#78350f';
       ctx.fillRect(20, -9, 4, 8);
       ctx.fillRect(20, 1, 4, 8);
     } else {
-      // Level 3: Triple infernal magma cannon
       ctx.fillStyle = '#7f1d1d';
       ctx.fillRect(-4, -10, 27, 6);
       ctx.fillRect(-2, -3, 29, 6);
       ctx.fillRect(-4, 4, 27, 6);
-      // Magma core glow
       ctx.fillStyle = '#f97316';
       ctx.beginPath();
       ctx.arc(0, 0, 6, 0, Math.PI * 2);
@@ -466,8 +531,8 @@ export class CanvasRenderer {
   private drawMagicTower(x: number, y: number, level: number, _rotation: number) {
     const ctx = this.ctx;
 
-    // 1. Dark obsidian pedestal
-    ctx.fillStyle = '#1e1b4b'; // Deep void purple
+    // Dark obsidian pedestal
+    ctx.fillStyle = '#1e1b4b';
     ctx.strokeStyle = '#4338ca';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -500,14 +565,13 @@ export class CanvasRenderer {
     for (let i = 0; i < count; i++) {
       const angle = this.animTimer * 2.5 + (Math.PI * 2 * i) / count;
       const ox = x + Math.cos(angle) * orbitDist;
-      const oy = y + Math.sin(angle) * orbitDist * 0.7; // Elliptical 3D perspective orbit
+      const oy = y + Math.sin(angle) * orbitDist * 0.7;
 
       ctx.fillStyle = level === 3 ? '#fb7185' : '#e9d5ff';
       ctx.beginPath();
       ctx.arc(ox, oy, 3.5, 0, Math.PI * 2);
       ctx.fill();
 
-      // Energy tether to core
       ctx.strokeStyle = 'rgba(192, 132, 252, 0.45)';
       ctx.lineWidth = 1;
       ctx.beginPath();
@@ -558,11 +622,9 @@ export class CanvasRenderer {
       ctx.stroke();
     }
 
-    // Walking bounce offset
     const bounceY = Math.abs(Math.sin(walkCycle * 2)) * 3;
     const drawY = y - bounceY;
 
-    // Draw enemy by type
     if (type === 'goblin') {
       this.drawGoblin(x, drawY, radius, hitFlashTimer > 0, walkCycle);
     } else if (type === 'orc') {
@@ -581,8 +643,6 @@ export class CanvasRenderer {
 
   private drawGoblin(x: number, y: number, r: number, isHit: boolean, walk: number) {
     const ctx = this.ctx;
-
-    // Legs
     const legOffset = Math.sin(walk * 2) * 4;
     ctx.strokeStyle = '#15803d';
     ctx.lineWidth = 3;
@@ -593,13 +653,11 @@ export class CanvasRenderer {
     ctx.lineTo(x + 5, y + 10 - legOffset);
     ctx.stroke();
 
-    // Body
     ctx.fillStyle = isHit ? '#ffffff' : '#22c55e';
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
 
-    // Pointy Goblin Ears
     ctx.fillStyle = isHit ? '#ffffff' : '#16a34a';
     ctx.beginPath();
     ctx.moveTo(x - r, y);
@@ -613,7 +671,6 @@ export class CanvasRenderer {
     ctx.lineTo(x + r - 2, y + 3);
     ctx.fill();
 
-    // Red goblin eyes
     ctx.fillStyle = '#dc2626';
     ctx.beginPath();
     ctx.arc(x - 4, y - 2, 2, 0, Math.PI * 2);
@@ -623,8 +680,6 @@ export class CanvasRenderer {
 
   private drawOrc(x: number, y: number, r: number, isHit: boolean, walk: number) {
     const ctx = this.ctx;
-
-    // Heavy Stomping Legs
     const legOffset = Math.sin(walk * 1.5) * 5;
     ctx.strokeStyle = '#7f1d1d';
     ctx.lineWidth = 5;
@@ -635,23 +690,19 @@ export class CanvasRenderer {
     ctx.lineTo(x + 7, y + 14 - legOffset);
     ctx.stroke();
 
-    // Bulky Body / Crimson Armor
     ctx.fillStyle = isHit ? '#ffffff' : '#ef4444';
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
 
-    // Iron Breastplate & Spiked Pauldrons
     ctx.fillStyle = '#3f3f46';
     ctx.fillRect(x - r * 0.7, y - 4, r * 1.4, 9);
 
-    // Horned Iron Helm
     ctx.fillStyle = '#27272a';
     ctx.beginPath();
     ctx.arc(x, y - 5, r * 0.85, Math.PI, 0);
     ctx.fill();
 
-    // Horns
     ctx.strokeStyle = '#e2e8f0';
     ctx.lineWidth = 3;
     ctx.beginPath();
@@ -661,7 +712,6 @@ export class CanvasRenderer {
     ctx.lineTo(x + r * 0.7 + 5, y - 13);
     ctx.stroke();
 
-    // Fierce glowing eyes
     ctx.fillStyle = '#facc15';
     ctx.beginPath();
     ctx.arc(x - 5, y - 3, 2.5, 0, Math.PI * 2);
@@ -671,14 +721,11 @@ export class CanvasRenderer {
 
   private drawRunner(x: number, y: number, r: number, isHit: boolean, walk: number) {
     const ctx = this.ctx;
-
-    // Speed ghost / trail
     ctx.fillStyle = 'rgba(234, 179, 8, 0.2)';
     ctx.beginPath();
     ctx.arc(x - Math.cos(walk) * 8, y, r * 0.9, 0, Math.PI * 2);
     ctx.fill();
 
-    // Rapid scuttling legs
     const legOffset = Math.sin(walk * 3) * 6;
     ctx.strokeStyle = '#a16207';
     ctx.lineWidth = 2.5;
@@ -689,13 +736,11 @@ export class CanvasRenderer {
     ctx.lineTo(x + 4, y + 11 - legOffset);
     ctx.stroke();
 
-    // Sleek hooded assassin body
     ctx.fillStyle = isHit ? '#ffffff' : '#eab308';
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
 
-    // Cloak hood
     ctx.fillStyle = '#713f12';
     ctx.beginPath();
     ctx.moveTo(x - r, y);
@@ -704,34 +749,28 @@ export class CanvasRenderer {
     ctx.closePath();
     ctx.fill();
 
-    // Glowing cyan visor/eyes
     ctx.fillStyle = '#38bdf8';
     ctx.fillRect(x - 4, y - 2, 8, 3);
   }
 
   private drawBoss(x: number, y: number, r: number, isHit: boolean, walk: number) {
     const ctx = this.ctx;
-
-    // Ground stomp tremor ring
     ctx.strokeStyle = 'rgba(236, 72, 153, 0.4)';
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.ellipse(x, y + 15, r * 1.5, r * 0.6, 0, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Huge Legs
     const legOffset = Math.sin(walk * 1.2) * 6;
     ctx.fillStyle = '#4c0519';
     ctx.fillRect(x - 12, y + 10, 8, 14 + legOffset);
     ctx.fillRect(x + 4, y + 10, 8, 14 - legOffset);
 
-    // Giant Magma Granite Body
     ctx.fillStyle = isHit ? '#ffffff' : '#831843';
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
 
-    // Magma cracks
     ctx.strokeStyle = '#ec4899';
     ctx.lineWidth = 2.5;
     ctx.beginPath();
@@ -740,7 +779,6 @@ export class CanvasRenderer {
     ctx.lineTo(x + 12, y - 4);
     ctx.stroke();
 
-    // Obsidian Crown/Horns
     ctx.fillStyle = '#1c1917';
     ctx.beginPath();
     ctx.moveTo(x - 18, y - 10);
@@ -753,7 +791,6 @@ export class CanvasRenderer {
     ctx.closePath();
     ctx.fill();
 
-    // Burning Molten Eyes
     ctx.fillStyle = '#fde047';
     ctx.beginPath();
     ctx.arc(x - 8, y - 4, 4, 0, Math.PI * 2);
@@ -767,11 +804,9 @@ export class CanvasRenderer {
     const barHeight = 4.5;
     const pct = Math.max(0, Math.min(1, curHp / maxHp));
 
-    // Dark background
     ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
     ctx.fillRect(x - barWidth / 2 - 1, y - 1, barWidth + 2, barHeight + 2);
 
-    // Health color gradient: Green -> Yellow -> Red
     let hpColor = '#22c55e';
     if (pct < 0.3) hpColor = '#ef4444';
     else if (pct < 0.6) hpColor = '#facc15';
@@ -791,7 +826,6 @@ export class CanvasRenderer {
       ctx.translate(x, y);
       ctx.rotate(angle);
 
-      // Arrow shaft
       ctx.strokeStyle = '#e2e8f0';
       ctx.lineWidth = 2.2;
       ctx.beginPath();
@@ -799,7 +833,6 @@ export class CanvasRenderer {
       ctx.lineTo(8, 0);
       ctx.stroke();
 
-      // Arrow head
       ctx.fillStyle = '#38bdf8';
       ctx.beginPath();
       ctx.moveTo(8, -3.5);
@@ -808,7 +841,6 @@ export class CanvasRenderer {
       ctx.closePath();
       ctx.fill();
 
-      // Fletching
       ctx.strokeStyle = '#94a3b8';
       ctx.lineWidth = 1.5;
       ctx.beginPath();
@@ -817,25 +849,21 @@ export class CanvasRenderer {
       ctx.lineTo(-10, 3);
       ctx.stroke();
     } else if (type === 'cannonball') {
-      // Cannonball shadow
       ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
       ctx.beginPath();
       ctx.arc(x + 2, y + 4, 5, 0, Math.PI * 2);
       ctx.fill();
 
-      // Fiery heavy shell
       ctx.fillStyle = '#1c1917';
       ctx.beginPath();
       ctx.arc(x, y, 6, 0, Math.PI * 2);
       ctx.fill();
 
-      // Burning ember trail
       ctx.fillStyle = '#f97316';
       ctx.beginPath();
       ctx.arc(x - 2, y - 2, 2.5, 0, Math.PI * 2);
       ctx.fill();
     } else if (type === 'magic') {
-      // Arcane orb
       const pulse = Math.sin(this.animTimer * 10) * 1.5;
       const grad = ctx.createRadialGradient(x, y, 1, x, y, 9 + pulse);
       grad.addColorStop(0, '#ffffff');
@@ -847,7 +875,6 @@ export class CanvasRenderer {
       ctx.arc(x, y, 9 + pulse, 0, Math.PI * 2);
       ctx.fill();
 
-      // Inner core
       ctx.fillStyle = '#38bdf8';
       ctx.beginPath();
       ctx.arc(x, y, 3, 0, Math.PI * 2);
@@ -898,7 +925,7 @@ export class CanvasRenderer {
 
     ctx.save();
 
-    // Range preview
+    // Range preview with tile annotation
     this.drawTowerRange(ghost.x, ghost.y, range, color, false);
 
     // Tower base preview
@@ -925,4 +952,3 @@ export class CanvasRenderer {
     ctx.restore();
   }
 }
-

@@ -19,7 +19,6 @@ interface TopBarProps {
   onSetSpeed: (speed: 1 | 2 | 4) => void;
   onToggleSound: () => void;
   onRestart: () => void;
-  onStartWave: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -28,18 +27,15 @@ export const TopBar: React.FC<TopBarProps> = ({
   onSetSpeed,
   onToggleSound,
   onRestart,
-  onStartWave,
 }) => {
   const hpPercent = Math.max(0, Math.min(100, (state.baseHp / state.maxBaseHp) * 100));
   const isPaused = state.gameStatus === 'PAUSED';
-  const canStartWave =
-    state.gameStatus === 'IDLE' || state.gameStatus === 'WAVE_COMPLETED';
 
   return (
     <header className="topbar-container">
       {/* Brand / Game Title */}
       <div className="topbar-brand">
-        <Flame className="brand-icon" size={24} />
+        <Flame className="brand-icon" size={22} />
         <div>
           <h1 className="brand-title">FANTASY DEFENSE</h1>
           <span className="brand-subtitle">Vương Quốc Phù Thủy</span>
@@ -49,8 +45,8 @@ export const TopBar: React.FC<TopBarProps> = ({
       {/* Core Stats: HP & Gold */}
       <div className="topbar-stats">
         {/* Base Health */}
-        <div className="stat-card stat-hp" title="Máu căn cứ">
-          <Heart className="stat-icon heart-icon" size={20} />
+        <div className="stat-card stat-hp" title="Máu căn cứ hoàng gia">
+          <Heart className="stat-icon heart-icon" size={18} />
           <div className="stat-info">
             <div className="stat-label">CĂN CỨ</div>
             <div className="stat-value">
@@ -70,46 +66,38 @@ export const TopBar: React.FC<TopBarProps> = ({
         </div>
 
         {/* Gold Coins */}
-        <div className="stat-card stat-gold" title="Vàng hiện có">
-          <Coins className="stat-icon gold-icon" size={22} />
+        <div className="stat-card stat-gold" title="Kho vàng hiện có">
+          <Coins className="stat-icon gold-icon" size={20} />
           <div className="stat-info">
             <div className="stat-label">KHO VÀNG</div>
             <div className="stat-value gold-text">{state.gold.toLocaleString()}</div>
           </div>
         </div>
 
-        {/* Wave Info */}
-        <div className="stat-card stat-wave" title="Đợt quái hiện tại">
-          <ShieldAlert className="stat-icon wave-icon" size={20} />
+        {/* Wave Status Badge */}
+        <div className="stat-card stat-wave" title="Tiến trình đợt quái">
+          <ShieldAlert className="stat-icon wave-icon" size={18} />
           <div className="stat-info">
-            <div className="stat-label">ĐỢT QUÁI</div>
+            <div className="stat-label">TIẾN TRÌNH</div>
             <div className="stat-value">
-              {state.currentWave}{' '}
+              ĐỢT {state.currentWave}{' '}
               <span className="stat-max">/ {state.totalWaves}</span>
             </div>
           </div>
-          {state.enemiesActive > 0 && (
+          {state.enemiesActive > 0 ? (
             <span className="active-enemies-badge">
               {state.enemiesActive} quái
+            </span>
+          ) : (
+            <span className="ready-wave-badge">
+              {state.currentWave >= state.totalWaves ? 'Chiến thắng' : 'Sẵn sàng'}
             </span>
           )}
         </div>
       </div>
 
-      {/* Controls: Wave trigger, Speed, Pause, Sound, Restart */}
+      {/* Controls: Speed, Pause, Sound, Restart */}
       <div className="topbar-controls">
-        {/* Wave Action Button */}
-        {canStartWave && (
-          <button
-            className="btn btn-primary start-wave-btn pulse-glow"
-            onClick={onStartWave}
-            title="Bắt đầu đợt quái tiếp theo (Phím Space)"
-          >
-            <Play size={16} fill="currentColor" />
-            <span>Gọi Đợt {state.currentWave + 1}</span>
-          </button>
-        )}
-
         {/* Speed Controls */}
         <div className="speed-toggle-group">
           <button
@@ -124,7 +112,7 @@ export const TopBar: React.FC<TopBarProps> = ({
             onClick={() => onSetSpeed(2)}
             title="Tốc độ nhanh (2x)"
           >
-            <FastForward size={14} /> 2x
+            <FastForward size={13} /> 2x
           </button>
           <button
             className={`btn-speed ${state.gameSpeed === 4 ? 'active' : ''}`}
@@ -141,7 +129,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           onClick={onTogglePause}
           title={isPaused ? 'Tiếp tục (P)' : 'Tạm dừng (P)'}
         >
-          {isPaused ? <Play size={18} /> : <Pause size={18} />}
+          {isPaused ? <Play size={16} /> : <Pause size={16} />}
         </button>
 
         {/* Mute Sound Button */}
@@ -150,23 +138,22 @@ export const TopBar: React.FC<TopBarProps> = ({
           onClick={onToggleSound}
           title={state.soundEnabled ? 'Tắt âm thanh (M)' : 'Bật âm thanh (M)'}
         >
-          {state.soundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
+          {state.soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
         </button>
 
         {/* Restart Button */}
         <button
           className="btn-icon btn-restart"
           onClick={() => {
-            if (window.confirm('Bạn có chắc chắn muốn chơi lại từ đầu không?')) {
+            if (window.confirm('Khởi tạo lại ván chơi mới từ đầu?')) {
               onRestart();
             }
           }}
           title="Chơi lại từ đầu (R)"
         >
-          <RotateCcw size={18} />
+          <RotateCcw size={16} />
         </button>
       </div>
     </header>
   );
 };
-

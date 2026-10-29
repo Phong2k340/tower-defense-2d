@@ -1,29 +1,31 @@
 import React from 'react';
-import { Crosshair, Bomb, Sparkles, X, Coins } from 'lucide-react';
-import { TOWER_CONFIGS } from '../config/gameConfig';
+import { Crosshair, Bomb, Sparkles, X, Coins, Zap } from 'lucide-react';
+import { MAP_CONFIG, TOWER_CONFIGS } from '../config/gameConfig';
 import { TowerType } from '../types/game';
 
 interface TowerShopProps {
   currentGold: number;
   buildingType: TowerType | null;
   onSelectTowerType: (type: TowerType | null) => void;
+  onHoverTowerType?: (type: TowerType | null) => void;
 }
 
 export const TowerShop: React.FC<TowerShopProps> = ({
   currentGold,
   buildingType,
   onSelectTowerType,
+  onHoverTowerType,
 }) => {
   const towers = Object.values(TOWER_CONFIGS);
 
   const getTowerIcon = (type: TowerType) => {
     switch (type) {
       case 'archer':
-        return <Crosshair size={22} className="tower-icon-archer" />;
+        return <Crosshair size={20} className="tower-icon-archer" />;
       case 'cannon':
-        return <Bomb size={22} className="tower-icon-cannon" />;
+        return <Bomb size={20} className="tower-icon-cannon" />;
       case 'magic':
-        return <Sparkles size={22} className="tower-icon-magic" />;
+        return <Sparkles size={20} className="tower-icon-magic" />;
     }
   };
 
@@ -41,7 +43,10 @@ export const TowerShop: React.FC<TowerShopProps> = ({
   return (
     <div className="tower-shop-container">
       <div className="shop-header">
-        <h3 className="shop-title">CÔNG TRÌNH PHÒNG THỦ</h3>
+        <div className="shop-title-group">
+          <h3 className="shop-title">CÔNG TRÌNH PHÒNG THỦ</h3>
+          <span className="shop-hint">Nhấn [1], [2], [3] hoặc chọn thẻ</span>
+        </div>
         {buildingType && (
           <button
             className="btn-cancel-build"
@@ -58,6 +63,8 @@ export const TowerShop: React.FC<TowerShopProps> = ({
           const isSelected = buildingType === cfg.type;
           const canAfford = currentGold >= cfg.baseCost;
           const hotkey = getTowerHotkey(cfg.type);
+          const dps = (cfg.baseDamage * cfg.baseAttackSpeed).toFixed(1);
+          const rangeTiles = (cfg.baseRange / MAP_CONFIG.cellSize).toFixed(1);
 
           return (
             <div
@@ -66,6 +73,8 @@ export const TowerShop: React.FC<TowerShopProps> = ({
                 !canAfford ? 'unaffordable' : ''
               }`}
               onClick={() => onSelectTowerType(isSelected ? null : cfg.type)}
+              onMouseEnter={() => onHoverTowerType?.(cfg.type)}
+              onMouseLeave={() => onHoverTowerType?.(null)}
               title={
                 canAfford
                   ? `Nhấp hoặc ấn phím [${hotkey}] để đặt ${cfg.name}`
@@ -75,44 +84,48 @@ export const TowerShop: React.FC<TowerShopProps> = ({
               {/* Hotkey Tag */}
               <span className="hotkey-badge">[{hotkey}]</span>
 
-              {/* Icon & Name */}
+              {/* Card Top: Icon, Name & Cost */}
               <div className="card-top">
                 <div className={`card-icon-wrapper ${cfg.type}-glow`}>
                   {getTowerIcon(cfg.type)}
                 </div>
-                <div>
+                <div className="card-heading">
                   <h4 className="card-name">{cfg.name}</h4>
                   <div className="card-cost">
-                    <Coins size={14} className="gold-icon" />
+                    <Coins size={13} className="gold-icon" />
                     <span>{cfg.baseCost} Vàng</span>
                   </div>
                 </div>
               </div>
 
-              {/* Tower Stats */}
+              {/* Stats & DPS Highlight */}
               <div className="card-stats">
-                <div className="stat-row">
-                  <span className="stat-name">Sát thương:</span>
-                  <span className="stat-val">{cfg.baseDamage}</span>
+                <div className="stat-row dps-row">
+                  <span className="stat-name">
+                    <Zap size={12} className="stat-icon-dmg" /> Hiệu năng DPS:
+                  </span>
+                  <span className="stat-val dps-val">{dps}/s</span>
                 </div>
                 <div className="stat-row">
                   <span className="stat-name">Tầm bắn:</span>
-                  <span className="stat-val">{cfg.baseRange}</span>
+                  <span className="stat-val">
+                    {rangeTiles} ô <small>({cfg.baseRange}px)</small>
+                  </span>
                 </div>
                 <div className="stat-row">
-                  <span className="stat-name">Tốc bắn:</span>
-                  <span className="stat-val">{cfg.baseAttackSpeed}/s</span>
+                  <span className="stat-name">Sát thương:</span>
+                  <span className="stat-val">{cfg.baseDamage} ({cfg.baseAttackSpeed}/s)</span>
                 </div>
                 {cfg.splashRadius > 0 && (
                   <div className="stat-row special-stat">
-                    <span className="stat-name">Nổ lan:</span>
-                    <span className="stat-val">{cfg.splashRadius}px</span>
+                    <span className="stat-name">Nổ lan AoE:</span>
+                    <span className="stat-val">Bán kính {cfg.splashRadius}px</span>
                   </div>
                 )}
                 {cfg.type === 'magic' && (
                   <div className="stat-row special-stat">
                     <span className="stat-name">Hiệu ứng:</span>
-                    <span className="stat-val">Chậm 35%</span>
+                    <span className="stat-val">Làm chậm 35%</span>
                   </div>
                 )}
               </div>
@@ -131,4 +144,3 @@ export const TowerShop: React.FC<TowerShopProps> = ({
     </div>
   );
 };
-

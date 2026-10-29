@@ -47,6 +47,7 @@ export class GameEngine {
 
   // Interaction
   public buildingTowerType: TowerType | null = null;
+  public hoverShopTowerType: TowerType | null = null;
   public mousePos: Point | null = null;
 
   // Stats
@@ -112,8 +113,7 @@ export class GameEngine {
 
   public broadcastState(force: boolean = false) {
     const now = performance.now();
-    // Throttle state emission to React unless forced
-    if (force || now - this.lastStateBroadcast > 50) {
+    if (force || now - this.lastStateBroadcast > 40) {
       this.lastStateBroadcast = now;
       const snapshot = this.getSnapshot();
       this.stateListeners.forEach((fn) => fn(snapshot));
@@ -137,6 +137,7 @@ export class GameEngine {
     this.gameStatus = 'IDLE';
     this.gameSpeed = 1;
     this.buildingTowerType = null;
+    this.hoverShopTowerType = null;
     this.mousePos = null;
 
     this.stats = {
@@ -192,6 +193,10 @@ export class GameEngine {
     this.buildingTowerType = type;
     this.towerManager.selectTower(null);
     this.broadcastState(true);
+  }
+
+  public setHoverShopTowerType(type: TowerType | null) {
+    this.hoverShopTowerType = type;
   }
 
   public selectTower(id: string | null) {
@@ -320,13 +325,7 @@ export class GameEngine {
 
   // Pointer / Click Handler
   public handleCanvasClick(rawX: number, rawY: number) {
-    // If currently placing a tower
-    if (this.buildingTowerType) {
-      this.buildTowerAt(rawX, rawY);
-      return;
-    }
-
-    // Check if clicked an existing tower
+    // Check if clicked an existing tower first (always allow selecting/inspecting)
     let clickedTower: Tower | null = null;
     for (const t of this.towerManager.towers) {
       const dx = rawX - t.x;
@@ -339,10 +338,17 @@ export class GameEngine {
 
     if (clickedTower) {
       this.selectTower(clickedTower.id);
-    } else {
-      // Clicked on empty ground -> deselect
-      this.selectTower(null);
+      return;
     }
+
+    // If currently placing a tower
+    if (this.buildingTowerType) {
+      this.buildTowerAt(rawX, rawY);
+      return;
+    }
+
+    // Clicked on empty ground -> deselect
+    this.selectTower(null);
   }
 
   public handleCanvasMouseMove(rawX: number, rawY: number) {
@@ -353,7 +359,7 @@ export class GameEngine {
     this.mousePos = null;
   }
 
-  // Core Simulation Step
+  // Core Simulation Step with Fixed Sub-Stepping
   private tick(dt: number) {
     if (this.renderer) {
       this.renderer.updateTime(dt);
@@ -365,121 +371,21 @@ export class GameEngine {
       this.gameStatus !== 'GAME_OVER' &&
       this.gameStatus !== 'VICTORY'
     ) {
-      const effectiveDt = dt * this.gameSpeed;
+      const totalEffectiveDt = dt * this.gameSpeed;
+      // Sub-stepping: slice large delta times into chunks <= 0.02s (50 FPS steps)
+      // to eliminate tunneling for projectiles and enemies at 2x and 4x speeds!
+      const maxSubStep = 0.02;
+      let remainingDt = totalEffectiveDt;
 
-      // 1. Update Enemies
-      const enemyResult = this.enemyManager.update(effectiveDt);
+      while (remainingDt > 0) {
+        const stepDt = Math.min(remainingDt, maxSubStep);
+        this.stepSimulation(stepDt);
+        remainingDt -= stepDt;
 
-      // Handle enemies reaching base
-      if (enemyResult.totalBaseDamage > 0) {
-        this.baseHp = Math.max(0, this.baseHp - enemyResult.totalBaseDamage);
-        soundManager.playLifeLost();
-
-        for (const e of enemyResult.reachedBaseEnemies) {
-          this.particleManager.addDamageText(
-            MAP_CONFIG.width - 30,
-            e.y,
-            `-${e.livesDeducted} Máu!`,
-            '#ef4444'
-          );
+        const currentStatus = this.gameStatus as GameStatus;
+        if (currentStatus === 'GAME_OVER' || currentStatus === 'VICTORY') {
+          break;
         }
-
-        if (this.baseHp <= 0) {
-          this.baseHp = 0;
-          this.gameStatus = 'GAME_OVER';
-          soundManager.playGameOver();
-          this.notifyToast('Căn cứ đã bị tiêu diệt! Trận đấu kết thúc!', 'error');
-          this.broadcastState(true);
-        }
-      }
-
-      // Handle killed enemies from status effects/DOT
-      if (enemyResult.killedEnemies.length > 0) {
-        this.gold += enemyResult.totalGoldEarned;
-        this.stats.goldEarned += enemyResult.totalGoldEarned;
-        this.stats.enemiesKilled += enemyResult.killedEnemies.length;
-
-        for (const e of enemyResult.killedEnemies) {
-          this.particleManager.addDeathPoof(e.x, e.y, e.color);
-          this.particleManager.addGoldText(e.x, e.y, e.goldReward);
-        }
-        soundManager.playEnemyDeath();
-        soundManager.playGold();
-      }
-
-      // 2. Update Towers (Targeting & Firing)
-      const fireEvents = this.towerManager.update(
-        effectiveDt,
-        this.enemyManager,
-        this.projectileManager
-      );
-
-      for (const ev of fireEvents) {
-        if (ev.tower.type === 'archer') {
-          soundManager.playArrowShoot();
-        } else if (ev.tower.type === 'cannon') {
-          soundManager.playCannonShoot();
-        } else if (ev.tower.type === 'magic') {
-          soundManager.playMagicShoot();
-        }
-      }
-
-      // 3. Update Projectiles
-      const hits = this.projectileManager.update(effectiveDt, this.enemyManager);
-
-      for (const hit of hits) {
-        this.stats.damageDealt += hit.damage;
-
-        if (hit.splashRadius > 0) {
-          soundManager.playExplosion();
-          this.particleManager.addExplosion(hit.x, hit.y, hit.splashRadius);
-        } else if (hit.type === 'magic') {
-          this.particleManager.addMagicImpact(hit.x, hit.y);
-          this.particleManager.addDamageText(hit.x, hit.y, `-${Math.round(hit.damage)}`, '#c084fc');
-        } else {
-          soundManager.playHit();
-          this.particleManager.addArrowHit(hit.x, hit.y);
-          this.particleManager.addDamageText(hit.x, hit.y, `-${Math.round(hit.damage)}`, '#f87171');
-        }
-
-        // Check kills caused by projectile
-        if (hit.killedEnemies.length > 0) {
-          this.gold += hit.totalGoldEarned;
-          this.stats.goldEarned += hit.totalGoldEarned;
-          this.stats.enemiesKilled += hit.killedEnemies.length;
-
-          for (const deadEnemy of hit.killedEnemies) {
-            this.particleManager.addDeathPoof(deadEnemy.x, deadEnemy.y, deadEnemy.color);
-            this.particleManager.addGoldText(deadEnemy.x, deadEnemy.y, deadEnemy.goldReward);
-          }
-
-          soundManager.playEnemyDeath();
-          soundManager.playGold();
-        }
-      }
-
-      // 4. Update Particles
-      this.particleManager.update(effectiveDt);
-
-      // 5. Check Wave Completion
-      if (this.gameStatus === 'WAVE_ACTIVE' && this.enemyManager.isWaveFinished()) {
-        const currentWaveConfig = WAVES.find((w) => w.waveNumber === this.currentWave);
-        const bonus = currentWaveConfig ? currentWaveConfig.bonusReward : 25;
-
-        this.gold += bonus;
-        this.stats.goldEarned += bonus;
-        this.stats.wavesCleared++;
-        soundManager.playGold();
-
-        if (this.currentWave >= this.totalWaves) {
-          this.gameStatus = 'VICTORY';
-          soundManager.playVictory();
-          this.notifyToast(`Chúc mừng! Bạn đã hoàn thành toàn bộ ${this.totalWaves} đợt quái và bảo vệ căn cứ thành công!`, 'success');
-        } else {
-          this.gameStatus = 'WAVE_COMPLETED';
-          this.notifyToast(`Hoàn thành Đợt ${this.currentWave}! Thưởng hoàn thành: +${bonus} Vàng`, 'success');
-        }
-        this.broadcastState(true);
       }
     }
 
@@ -504,12 +410,135 @@ export class GameEngine {
         this.projectileManager.projectiles,
         this.particleManager.particles,
         this.towerManager.getSelectedTower(),
-        hoverGhost
+        hoverGhost,
+        this.hoverShopTowerType
       );
     }
 
     // Periodically sync UI
     this.broadcastState();
   }
-}
 
+  private stepSimulation(dt: number) {
+    // 1. Update Enemies
+    const enemyResult = this.enemyManager.update(dt);
+
+    // Handle enemies reaching base
+    if (enemyResult.totalBaseDamage > 0) {
+      this.baseHp = Math.max(0, this.baseHp - enemyResult.totalBaseDamage);
+      soundManager.playLifeLost();
+
+      for (const e of enemyResult.reachedBaseEnemies) {
+        this.particleManager.addDamageText(
+          MAP_CONFIG.width - 30,
+          e.y,
+          `-${e.livesDeducted} Máu!`,
+          '#ef4444'
+        );
+      }
+
+      if (this.baseHp <= 0) {
+        this.baseHp = 0;
+        this.gameStatus = 'GAME_OVER';
+        soundManager.playGameOver();
+        this.notifyToast('Căn cứ đã bị phá hủy! Trận đấu kết thúc!', 'error');
+        this.broadcastState(true);
+        return; // Terminate step immediately, preventing race condition with victory
+      }
+    }
+
+    // Handle killed enemies from status effects/DOT
+    if (enemyResult.killedEnemies.length > 0) {
+      this.gold += enemyResult.totalGoldEarned;
+      this.stats.goldEarned += enemyResult.totalGoldEarned;
+      this.stats.enemiesKilled += enemyResult.killedEnemies.length;
+
+      for (const e of enemyResult.killedEnemies) {
+        this.particleManager.addDeathPoof(e.x, e.y, e.color);
+        this.particleManager.addGoldText(e.x, e.y, e.goldReward);
+      }
+      soundManager.playEnemyDeath();
+      soundManager.playGold();
+    }
+
+    // 2. Update Towers (Targeting & Firing)
+    const fireEvents = this.towerManager.update(
+      dt,
+      this.enemyManager,
+      this.projectileManager
+    );
+
+    for (const ev of fireEvents) {
+      if (ev.tower.type === 'archer') {
+        soundManager.playArrowShoot();
+      } else if (ev.tower.type === 'cannon') {
+        soundManager.playCannonShoot();
+      } else if (ev.tower.type === 'magic') {
+        soundManager.playMagicShoot();
+      }
+    }
+
+    // 3. Update Projectiles
+    const hits = this.projectileManager.update(dt, this.enemyManager);
+
+    for (const hit of hits) {
+      this.stats.damageDealt += hit.damage;
+
+      if (hit.splashRadius > 0) {
+        soundManager.playExplosion();
+        this.particleManager.addExplosion(hit.x, hit.y, hit.splashRadius);
+      } else if (hit.type === 'magic') {
+        soundManager.playMagicImpact();
+        this.particleManager.addMagicImpact(hit.x, hit.y);
+        this.particleManager.addDamageText(hit.x, hit.y, `-${Math.round(hit.damage)}`, '#c084fc');
+      } else {
+        soundManager.playHit();
+        this.particleManager.addArrowHit(hit.x, hit.y);
+        this.particleManager.addDamageText(hit.x, hit.y, `-${Math.round(hit.damage)}`, '#f87171');
+      }
+
+      // Check kills caused by projectile
+      if (hit.killedEnemies.length > 0) {
+        this.gold += hit.totalGoldEarned;
+        this.stats.goldEarned += hit.totalGoldEarned;
+        this.stats.enemiesKilled += hit.killedEnemies.length;
+
+        for (const deadEnemy of hit.killedEnemies) {
+          this.particleManager.addDeathPoof(deadEnemy.x, deadEnemy.y, deadEnemy.color);
+          this.particleManager.addGoldText(deadEnemy.x, deadEnemy.y, deadEnemy.goldReward);
+        }
+
+        soundManager.playEnemyDeath();
+        soundManager.playGold();
+      }
+    }
+
+    // 4. Update Particles
+    this.particleManager.update(dt);
+
+    // 5. Check Wave Completion (only if base is still alive)
+    if (
+      this.baseHp > 0 &&
+      this.gameStatus === 'WAVE_ACTIVE' &&
+      this.enemyManager.isWaveFinished()
+    ) {
+      const currentWaveConfig = WAVES.find((w) => w.waveNumber === this.currentWave);
+      const bonus = currentWaveConfig ? currentWaveConfig.bonusReward : 25;
+
+      this.gold += bonus;
+      this.stats.goldEarned += bonus;
+      this.stats.wavesCleared++;
+      soundManager.playGold();
+
+      if (this.currentWave >= this.totalWaves) {
+        this.gameStatus = 'VICTORY';
+        soundManager.playVictory();
+        this.notifyToast(`Chúc mừng! Bạn đã hoàn thành toàn bộ ${this.totalWaves} đợt quái và bảo vệ căn cứ thành công!`, 'success');
+      } else {
+        this.gameStatus = 'WAVE_COMPLETED';
+        this.notifyToast(`Hoàn thành Đợt ${this.currentWave}! Thưởng hoàn thành: +${bonus} Vàng`, 'success');
+      }
+      this.broadcastState(true);
+    }
+  }
+}

@@ -121,10 +121,11 @@ export class EnemyManager {
         enemy.hitFlashTimer = Math.max(0, enemy.hitFlashTimer - dt);
       }
 
-      // Handle slow status effect
+      // Handle slow status effect with safe bounds (never stack additively or freeze completely)
       if (enemy.slowTimer > 0) {
         enemy.slowTimer = Math.max(0, enemy.slowTimer - dt);
-        enemy.speed = enemy.baseSpeed * (1 - enemy.slowFactor);
+        const clampedFactor = Math.min(0.65, Math.max(0, enemy.slowFactor));
+        enemy.speed = Math.max(enemy.baseSpeed * 0.3, enemy.baseSpeed * (1 - clampedFactor));
       } else {
         enemy.speed = enemy.baseSpeed;
         enemy.slowFactor = 0;
@@ -206,9 +207,15 @@ export class EnemyManager {
     enemy.currentHp -= damage;
     enemy.hitFlashTimer = 0.12;
 
-    if (slowEffect && slowEffect.factor > enemy.slowFactor) {
-      enemy.slowTimer = slowEffect.duration;
-      enemy.slowFactor = slowEffect.factor;
+    if (slowEffect) {
+      // Refresh or upgrade slow factor - NEVER stack additively
+      if (slowEffect.factor >= enemy.slowFactor) {
+        enemy.slowFactor = Math.min(0.65, slowEffect.factor);
+        enemy.slowTimer = Math.max(enemy.slowTimer, slowEffect.duration);
+      } else {
+        // Lower factor only extends duration if current slow is expiring
+        enemy.slowTimer = Math.max(enemy.slowTimer, slowEffect.duration);
+      }
     }
 
     if (enemy.currentHp <= 0) {

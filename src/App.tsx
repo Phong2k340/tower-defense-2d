@@ -66,7 +66,7 @@ export const App: React.FC = () => {
           break;
         case 'r':
         case 'R':
-          if (window.confirm('Khởi tạo lại ván chơi mới?')) {
+          if (window.confirm('Khởi tạo lại ván chơi mới từ đầu?')) {
             engine.restart();
           }
           break;
@@ -84,26 +84,22 @@ export const App: React.FC = () => {
 
   return (
     <div className="game-app-root">
-      {/* Top Header Bar */}
+      {/* 1. Slim Top Header Bar */}
       <TopBar
         state={gameState}
         onTogglePause={() => engine.togglePause()}
         onSetSpeed={(speed) => engine.setSpeed(speed)}
         onToggleSound={() => engine.toggleSound()}
         onRestart={() => engine.restart()}
-        onStartWave={() => engine.startNextWave()}
       />
 
-      {/* Main Game Stage */}
+      {/* 2. Main Game Stage (Viewport Contained 100vh) */}
       <main className="game-stage">
-        {/* Wave Announcement & Action Bar */}
-        <WaveControl state={gameState} onStartWave={() => engine.startNextWave()} />
-
         {/* Battlefield Canvas Area */}
         <div className="battlefield-container">
           <CanvasView engine={engine} />
 
-          {/* Tower Inspector Sidebar/Overlay */}
+          {/* Tower Inspector Overlay */}
           {gameState.selectedTower && (
             <div className="inspector-overlay-wrapper">
               <TowerInspector
@@ -118,12 +114,20 @@ export const App: React.FC = () => {
           )}
         </div>
 
-        {/* Tower Recruitment Shop */}
-        <TowerShop
-          currentGold={gameState.gold}
-          buildingType={gameState.buildingTowerType}
-          onSelectTowerType={(type) => engine.selectTowerTypeToBuild(type)}
-        />
+        {/* 3. Bottom Command Deck (Wave info + Towers Dock side-by-side) */}
+        <div className="bottom-command-deck">
+          <div className="deck-wave-section">
+            <WaveControl state={gameState} onStartWave={() => engine.startNextWave()} />
+          </div>
+          <div className="deck-shop-section">
+            <TowerShop
+              currentGold={gameState.gold}
+              buildingType={gameState.buildingTowerType}
+              onSelectTowerType={(type) => engine.selectTowerTypeToBuild(type)}
+              onHoverTowerType={(type) => engine.setHoverShopTowerType(type)}
+            />
+          </div>
+        </div>
       </main>
 
       {/* Floating System Toasts */}
@@ -136,4 +140,3 @@ export const App: React.FC = () => {
 };
 
 export default App;
-

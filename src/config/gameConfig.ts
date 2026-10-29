@@ -23,6 +23,18 @@ export const PATH_WAYPOINTS: Point[] = [
   { x: 1020, y: 460 }, // 7: Base exit off-screen right
 ];
 
+// Strategic build nodes (bệ đá chiến thuật) positioned at prime defense spots
+export const TACTICAL_BUILD_NODES: Point[] = [
+  { x: 125, y: 80 },   // Node 1: Entrance overwatch
+  { x: 175, y: 240 },  // Node 2: First inner hairpin
+  { x: 385, y: 320 },  // Node 3: Central loop core
+  { x: 385, y: 560 },  // Node 4: South bend anchor
+  { x: 640, y: 95 },   // Node 5: North bend sniper
+  { x: 640, y: 320 },  // Node 6: East loop core
+  { x: 870, y: 340 },  // Node 7: Castle defense approach
+  { x: 870, y: 550 },  // Node 8: Castle gate defense
+];
+
 export const INITIAL_GAME_STATE = {
   baseHp: 20,
   maxBaseHp: 20,
@@ -35,61 +47,61 @@ export const TOWER_CONFIGS: Record<string, TowerConfig> = {
   archer: {
     type: 'archer',
     name: 'Tháp Cung Thủ',
-    description: 'Tốc độ bắn cực nhanh, sát thương đơn mục tiêu ổn định.',
-    baseCost: 70,
+    description: 'Tốc bắn cực nhanh, sát thương vật lý đơn mục tiêu hiệu quả cao nhất.',
+    baseCost: 65,
     baseRange: 145,
-    baseDamage: 16,
-    baseAttackSpeed: 2.2,
+    baseDamage: 18,
+    baseAttackSpeed: 2.4, // 43.2 DPS (0.66 DPS/Vàng)
     splashRadius: 0,
     color: '#38bdf8', // Sky blue
     accentColor: '#0284c7',
-    projectileSpeed: 480,
+    projectileSpeed: 520,
     projectileType: 'arrow',
     upgrades: {
       2: {
-        cost: 55,
-        damage: 28,
+        cost: 50,
+        damage: 32,
         range: 165,
-        attackSpeed: 2.6,
-        specialDesc: '+ Cung tên composite tăng sát thương và tầm bắn',
+        attackSpeed: 2.8, // 89.6 DPS
+        specialDesc: '+ Cung composite gỗ sồi tăng tốc và sát thương',
       },
       3: {
-        cost: 95,
-        damage: 48,
+        cost: 85,
+        damage: 54,
         range: 190,
-        attackSpeed: 3.2,
-        specialDesc: '+ Mũi tên phong linh xé gió, tốc bắn tối đa',
+        attackSpeed: 3.4, // 183.6 DPS
+        specialDesc: '+ Tên phong linh xé gió, sát thương chí mạng đơn mục tiêu',
       },
     },
   },
   cannon: {
     type: 'cannon',
     name: 'Pháo Thần Công',
-    description: 'Bắn chậm nhưng uy lực khủng khiếp, nổ lan diện rộng.',
-    baseCost: 125,
-    baseRange: 125,
-    baseDamage: 55,
-    baseAttackSpeed: 0.75,
+    description: 'Uy lực khủng khiếp, nổ lan diện rộng khắc chế toàn bộ bầy quái đông.',
+    baseCost: 120,
+    baseRange: 130,
+    baseDamage: 65,
+    baseAttackSpeed: 0.8, // 52.0 DPS đơn + x2-x5 khi quái tụ đàn
     splashRadius: 75,
     color: '#f97316', // Orange
     accentColor: '#c2410c',
-    projectileSpeed: 320,
+    projectileSpeed: 340,
     projectileType: 'cannonball',
     upgrades: {
       2: {
-        cost: 95,
-        damage: 95,
-        range: 140,
-        attackSpeed: 0.85,
+        cost: 90,
+        damage: 115,
+        range: 145,
+        attackSpeed: 0.9, // 103.5 DPS
         splashRadius: 90,
         specialDesc: '+ Nòng thép cường lực tăng uy lực và bán kính nổ',
       },
       3: {
-        cost: 150,
-        damage: 160,
-        range: 160,
-        attackSpeed: 1.0,
-        splashRadius: 110,
+        cost: 140,
+        damage: 190,
+        range: 165,
+        attackSpeed: 1.05, // 199.5 DPS
+        splashRadius: 115,
         specialDesc: '+ Pháo hỏa ngục kép tàn phá toàn bộ bầy quái',
       },
     },
@@ -97,30 +109,30 @@ export const TOWER_CONFIGS: Record<string, TowerConfig> = {
   magic: {
     type: 'magic',
     name: 'Tháp Pháp Thuật',
-    description: 'Sát thương phép xuyên giáp, làm chậm tốc độ kẻ địch.',
-    baseCost: 100,
-    baseRange: 175,
-    baseDamage: 32,
-    baseAttackSpeed: 1.3,
+    description: 'Sát thương phép xuyên giáp, làm chậm tốc độ kẻ địch quan trọng.',
+    baseCost: 110,
+    baseRange: 180,
+    baseDamage: 26,
+    baseAttackSpeed: 1.2, // 31.2 DPS + khống chế làm chậm
     splashRadius: 0,
     color: '#a855f7', // Purple
     accentColor: '#7e22ce',
-    projectileSpeed: 400,
+    projectileSpeed: 420,
     projectileType: 'magic',
     upgrades: {
       2: {
         cost: 75,
-        damage: 54,
-        range: 195,
-        attackSpeed: 1.5,
-        specialDesc: '+ Tinh thể Arcanite tăng sát thương phép và làm chậm 45%',
+        damage: 45,
+        range: 205,
+        attackSpeed: 1.4, // 63.0 DPS
+        specialDesc: '+ Tinh thể Arcanite làm chậm 45% tốc độ trong 2.6s',
       },
       3: {
-        cost: 125,
-        damage: 92,
-        range: 220,
-        attackSpeed: 1.85,
-        specialDesc: '+ Bão sấm sét ma thuật làm chậm 55% kẻ địch',
+        cost: 120,
+        damage: 75,
+        range: 230,
+        attackSpeed: 1.7, // 127.5 DPS
+        specialDesc: '+ Bão sấm sét ma thuật làm chậm 55% tốc độ trong 3.0s',
       },
     },
   },
@@ -137,7 +149,7 @@ export const ENEMY_CONFIGS: Record<string, EnemyConfig> = {
     radius: 13,
     color: '#22c55e', // Emerald green
     accentColor: '#15803d',
-    description: 'Di chuyển nhanh nhẹn, máu ít nhưng hay đi theo đàn.',
+    description: 'Di chuyển nhanh, máu thấp, thường tràn vào theo đàn đông.',
   },
   orc: {
     type: 'orc',
@@ -149,7 +161,7 @@ export const ENEMY_CONFIGS: Record<string, EnemyConfig> = {
     radius: 19,
     color: '#ef4444', // Red-crimson
     accentColor: '#991b1b',
-    description: 'Thể hình đồ sộ, giáp dày chịu đòn cực tốt.',
+    description: 'Giáp sắt dày, thể hình hộ pháp, chịu đòn cực kỳ bền bỉ.',
   },
   runner: {
     type: 'runner',
@@ -161,7 +173,7 @@ export const ENEMY_CONFIGS: Record<string, EnemyConfig> = {
     radius: 12,
     color: '#eab308', // Amber gold
     accentColor: '#a16207',
-    description: 'Cực nhanh và né tránh tốt, cần tháp làm chậm để cản.',
+    description: 'Di chuyển siêu tốc (150 px/s), cần tháp phép làm chậm để chặn.',
   },
   boss: {
     type: 'boss',
@@ -173,7 +185,7 @@ export const ENEMY_CONFIGS: Record<string, EnemyConfig> = {
     radius: 26,
     color: '#ec4899', // Hot Pink / Magma
     accentColor: '#831843',
-    description: 'Boss trùm khổng lồ, lượng máu áp đảo, trừ 3 máu nếu lọt qua!',
+    description: 'Boss trùm khổng lồ, máu áp đảo, trừ 3 máu nếu lọt vào căn cứ!',
   },
 };
 
@@ -271,4 +283,3 @@ export const WAVES: WaveConfig[] = [
     ],
   },
 ];
-
